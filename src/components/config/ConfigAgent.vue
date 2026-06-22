@@ -100,6 +100,12 @@
               <option v-for="opt in modelOptions" :key="opt" :value="opt">{{ opt }}</option>
             </select>
           </div>
+          <div class="field-row">
+            <label>日程模型 (story)</label>
+            <select v-model="agents.story" class="field-input">
+              <option v-for="opt in modelOptions" :key="opt" :value="opt">{{ opt }}</option>
+            </select>
+          </div>
           <div class="section-save">
             <button class="btn-ghost-primary" :disabled="savingAgent" @click="saveAgentConfig">
               {{ savingAgent ? '保存中...' : '保存 Agent 配置' }}
@@ -122,7 +128,7 @@ export default {
       savingLlm: false,
       savingAgent: false,
       platforms: [],
-      agents: { chat: '', compact: '', memory: '' },
+      agents: { chat: '', compact: '', memory: '', story: '' },
       inputTypeOptions: ['text', 'image', 'audio', 'video']
     }
   },
@@ -161,7 +167,7 @@ export default {
             input_type: Array.isArray(m.input_type) ? [...m.input_type] : []
           }))
         }))
-        this.agents = { chat: '', compact: '', memory: '', ...(data.agents || {}) }
+        this.agents = { chat: '', compact: '', memory: '', story: '', ...(data.agents || {}) }
       } catch (e) {
         console.error('加载 Agent 配置失败:', e)
         this.showMessage('加载配置失败: ' + e.message, 'error')

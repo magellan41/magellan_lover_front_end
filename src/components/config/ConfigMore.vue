@@ -5,6 +5,26 @@
       <div v-if="message" :class="['message-bar', messageType]">{{ message }}</div>
 
       <div class="config-scroll">
+        <!-- 日程描述 -->
+        <div class="config-section">
+          <div class="section-header">
+            <h3>日程描述</h3>
+          </div>
+          <div class="field-col">
+            <textarea
+              v-model="scheduleDescription"
+              class="field-textarea"
+              rows="6"
+              placeholder="请输入 Agent 的日程描述..."
+            ></textarea>
+          </div>
+          <div class="section-save">
+            <button class="btn-ghost-primary" :disabled="savingSchedule" @click="saveSchedule">
+              {{ savingSchedule ? '保存中...' : '保存日程描述' }}
+            </button>
+          </div>
+        </div>
+
         <!-- 语音设置 -->
         <div class="config-section">
           <div class="section-header">
@@ -68,6 +88,8 @@ export default {
       voiceKeyType: 'env',
       voiceApiKey: '',
       voiceGenerator: 'minimax',
+      scheduleDescription: '',
+      savingSchedule: false,
       original: '',
       ready: false
     }
@@ -79,10 +101,12 @@ export default {
   },
   mounted() {
     this.loadConfig()
+    this.loadSchedule()
   },
   watch: {
     voiceEnable() {
-      if (this.ready) this.saveConfig()
+      // 加载完成后才响应，且值真正发生变化才保存
+      if (this.ready && this.hasChanges) this.saveConfig()
     }
   },
   methods: {
@@ -92,6 +116,8 @@ export default {
         const res = await fetch('/api/agent/voice/get', { cache: 'no-cache' })
         if (res.ok) {
           const data = await res.json()
+          // 先标记 ready，再赋值；watcher 触发时 ready 仍为 false，跳过首次保存
+          this.ready = true
           this.voiceEnable = this.parseBool(data.voice_enable)
           this.voiceKeyType = data.voice_key_type || 'env'
           this.voiceApiKey = data.voice_api_key || ''
@@ -102,7 +128,6 @@ export default {
         this.showMessage('加载配置失败', 'error')
       } finally {
         this.loading = false
-        this.ready = true
       }
     },
     parseBool(val) {
@@ -142,6 +167,39 @@ export default {
         this.showMessage('保存失败: 网络错误', 'error')
       } finally {
         this.saving = false
+      }
+    },
+    async loadSchedule() {
+      try {
+        const res = await fetch('/api/agent/schedule_description/get', { cache: 'no-cache' })
+        if (res.ok) {
+          // 后端 -> str 返回时 FastAPI 自动 JSON 编码（"text"），需 parse 去引号
+          const text = await res.text()
+          try { this.scheduleDescription = JSON.parse(text) } catch (e) { this.scheduleDescription = text }
+        }
+      } catch (e) {
+        this.showMessage('加载日程描述失败', 'error')
+      }
+    },
+    async saveSchedule() {
+      if (this.savingSchedule) return
+      this.savingSchedule = true
+      try {
+        // 后端 Body(..., description=...) 期望 JSON 编码的字符串
+        const res = await fetch('/api/agent/schedule_description/set', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.scheduleDescription)
+        })
+        if (res.ok) {
+          this.showMessage('日程描述保存成功！', 'success')
+        } else {
+          this.showMessage('保存失败: ' + res.status, 'error')
+        }
+      } catch (e) {
+        this.showMessage('保存失败: 网络错误', 'error')
+      } finally {
+        this.savingSchedule = false
       }
     },
     showMessage(text, type) {
@@ -224,6 +282,32 @@ export default {
   background: #f5f6f8;
   color: #bbb;
   cursor: not-allowed;
+}
+
+.field-col {
+  padding: 10px 16px;
+}
+.field-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 12px;
+  border: 1px solid #e4e8ec;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  outline: none;
+  resize: vertical;
+  background: #fff;
+  color: #444;
+  font-family: inherit;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.field-textarea:focus {
+  border-color: #b8cfe8;
+  box-shadow: 0 0 0 3px rgba(91, 155, 213, 0.08);
+}
+.field-textarea::placeholder {
+  color: #bbb;
 }
 
 .field-row.disabled label {
