@@ -64,6 +64,15 @@
               @ended="onEnded(msg)"
             ></audio>
           </div>
+          <div v-else-if="msg.type === 'image' && msg.images && msg.images.length" class="image-grid">
+            <img
+              v-for="(src, i) in msg.images"
+              :key="i"
+              :src="src"
+              class="chat-image"
+              @click="previewImage(src)"
+            />
+          </div>
           <pre v-else class="message-text">{{ msg.content }}</pre>
         </div>
       </div>
@@ -81,6 +90,20 @@
     </div>
 
     <div class="chat-input-area">
+      <label class="upload-btn" title="上传图片">
+        <input
+          type="file"
+          accept="image/png,image/jpeg,image/jpg,image/gif"
+          multiple
+          class="upload-file-input"
+          @change="uploadImages"
+        />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+      </label>
       <textarea
         v-model="inputMessage"
         class="chat-input"
@@ -209,25 +232,64 @@ export default {
       this.loading = isFirst
       this.loadingMore = !isFirst
       try {
-        const res = await fetch(`/api/chat/list/${this.minId}`, { cache: 'no-cache' })
+        const url = `/api/chat/list/${this.minId}`
+        console.log('[fetchHistory] 请求:', url, 'minId:', this.minId, 'isFirst:', isFirst)
+        const res = await fetch(url, { cache: 'no-cache' })
         const json = await res.json()
-        const items = json.data || []
+        console.log('[fetchHistory] 响应:', JSON.stringify(json).slice(0, 500))
+        // 兼容多种响应格式：json.data / json.list / json 本身为数组
+        const items = Array.isArray(json.data) ? json.data
+          : Array.isArray(json.list) ? json.list
+          : Array.isArray(json) ? json
+          : []
         if (items.length === 0) {
+          console.log('[fetchHistory] 返回空数据，标记 reachedEnd')
           this.reachedEnd = true
           return
         }
-        const newMessages = items.map((item, i) => ({
-          id: item.id != null ? item.id : `hist_${this.minId}_${i}`,
-          role: item.role,
-          content: item.content,
-          type: item.type || 'text'
-        }))
+        const newMessages = items.map((item, i) => {
+          const type = item.type || 'text'
+          const content = item.content || ''
+          let images = []
+          if (type === 'image' && content) {
+            const paths = content.includes(',') ? content.split(',') : [content]
+            images = paths.map(p => {
+              const trim = p.trim()
+              return trim.startsWith('/') ? 'http://localhost:8000' + trim : trim
+            })
+          }
+          return {
+            id: item.id != null ? item.id : `hist_${this.minId}_${i}`,
+            role: item.role,
+            content,
+            type,
+            images
+          }
+        })
+        // 加载更多时记录当前滚动高度，用于插入新消息后恢复位置
+        const el = this.$refs.messagesContainer
+        const prevScrollHeight = el ? el.scrollHeight : 0
         // 倒序后追加到前面（后端返回从近到远，需要反转为从远到近）
         this.messages = [...newMessages.reverse(), ...this.messages]
-        // 更新 minId
-        this.minId = items[items.length - 1].id
-        if (!isFirst) {
+        // 更新 minId：取所有返回项中的最小 id，兼容数字和字符串类型
+        const ids = items.map(i => i.id).filter(id => id != null && !isNaN(Number(id))).map(id => Number(id))
+        if (ids.length > 0) {
+          this.minId = Math.min(...ids)
+          console.log('[fetchHistory] 更新 minId:', this.minId)
+        } else {
+          console.warn('[fetchHistory] 未找到有效 id，items:', items.slice(0, 2), '标记 reachedEnd')
+          this.reachedEnd = true
+        }
+        if (isFirst) {
+          // 首次加载：滚动到底部
           this.scrollToBottom()
+        } else {
+          // 加载更多：保持当前滚动位置（新消息插入顶部后不跳动）
+          this.$nextTick(() => {
+            if (el) {
+              el.scrollTop = el.scrollHeight - prevScrollHeight
+            }
+          })
         }
       } catch (e) {
         console.error('获取聊天记录失败:', e)
@@ -238,8 +300,13 @@ export default {
     },
     onScroll() {
       const el = this.$refs.messagesContainer
-      if (!el || this.loadingMore || this.reachedEnd) return
-      if (el.scrollTop < 60) {
+      if (!el) return
+      if (this.loadingMore || this.reachedEnd) {
+        console.log('[onScroll] 跳过: loadingMore=', this.loadingMore, 'reachedEnd=', this.reachedEnd)
+        return
+      }
+      if (el.scrollTop < 80) {
+        console.log('[onScroll] 触发加载: scrollTop=', el.scrollTop)
         this.fetchHistory()
       }
     },
@@ -312,6 +379,34 @@ export default {
         console.error('发送消息失败:', e)
         this.messages.push({ role: 'agent', content: '网络错误，请稍后重试。', type: 'text' })
       }
+    },
+    async uploadImages(e) {
+      const files = Array.from(e.target.files)
+      if (!files.length) return
+      e.target.value = ''
+      const formData = new FormData()
+      files.forEach(f => formData.append('files', f))
+      try {
+        const res = await fetch('/api/chat/image', { method: 'POST', body: formData })
+        if (res.ok) {
+          const data = await res.json()
+          const urls = data.urls || []
+          const images = urls.map(p => p.startsWith('/') ? 'http://localhost:8000' + p : p)
+          this.messages.push({
+            role: 'user',
+            type: 'image',
+            images,
+            content: '',
+            id: Date.now()
+          })
+          this.scrollToBottom()
+        }
+      } catch (err) {
+        console.error('图片上传失败:', err)
+      }
+    },
+    previewImage(src) {
+      window.open(src, '_blank')
     },
     connectSSE() {
       this.closeSSE()
@@ -584,6 +679,24 @@ export default {
   font-size: inherit;
 }
 
+.image-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chat-image {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 8px;
+  cursor: pointer;
+  object-fit: cover;
+  transition: opacity 0.2s;
+}
+.chat-image:hover {
+  opacity: 0.85;
+}
+
 /* custom voice player */
 .voice-player {
   display: flex;
@@ -698,6 +811,34 @@ export default {
   border-color: #b8cfe8;
   background: #fff;
   box-shadow: 0 0 0 3px rgba(91, 155, 213, 0.08);
+}
+
+.upload-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px dashed #b8d4ec;
+  background: transparent;
+  color: #6aabd8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.25s;
+  position: relative;
+}
+.upload-btn:hover {
+  border-color: #5b9bd5;
+  color: #4a90c4;
+  background: rgba(91, 155, 213, 0.05);
+}
+.upload-file-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .send-btn {

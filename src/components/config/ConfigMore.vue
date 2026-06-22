@@ -1,0 +1,291 @@
+<template>
+  <div class="config-more">
+    <div v-if="loading" class="loading-tip">加载配置中...</div>
+    <template v-else>
+      <div v-if="message" :class="['message-bar', messageType]">{{ message }}</div>
+
+      <div class="config-scroll">
+        <!-- 语音设置 -->
+        <div class="config-section">
+          <div class="section-header">
+            <h3>语音设置</h3>
+          </div>
+
+          <div class="field-row">
+            <label>启用语音</label>
+            <label class="switch">
+              <input type="checkbox" v-model="voiceEnable" />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="field-row" :class="{ disabled: !voiceEnable }">
+            <label>Key 类型</label>
+            <select v-model="voiceKeyType" class="field-input" :disabled="!voiceEnable">
+              <option value="env">env（环境变量）</option>
+              <option value="str">str（明文）</option>
+            </select>
+          </div>
+
+          <div class="field-row" :class="{ disabled: !voiceEnable }">
+            <label>API Key</label>
+            <input
+              v-model="voiceApiKey"
+              class="field-input"
+              :disabled="!voiceEnable"
+              placeholder="API Key 或环境变量名"
+            />
+          </div>
+
+          <div class="field-row" :class="{ disabled: !voiceEnable }">
+            <label>语音生成器</label>
+            <select v-model="voiceGenerator" class="field-input" :disabled="!voiceEnable">
+              <option value="minimax">minimax</option>
+            </select>
+          </div>
+
+          <div class="section-save">
+            <button class="btn-ghost-primary" :disabled="saving" @click="saveConfig">
+              {{ saving ? '保存中...' : '保存语音设置' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'ConfigMore',
+  data() {
+    return {
+      loading: false,
+      saving: false,
+      message: '',
+      messageType: 'success',
+      voiceEnable: false,
+      voiceKeyType: 'env',
+      voiceApiKey: '',
+      voiceGenerator: 'minimax',
+      original: '',
+      ready: false
+    }
+  },
+  computed: {
+    hasChanges() {
+      return this.buildPayload() !== this.original
+    }
+  },
+  mounted() {
+    this.loadConfig()
+  },
+  watch: {
+    voiceEnable() {
+      if (this.ready) this.saveConfig()
+    }
+  },
+  methods: {
+    async loadConfig() {
+      this.loading = true
+      try {
+        const res = await fetch('/api/agent/voice/get', { cache: 'no-cache' })
+        if (res.ok) {
+          const data = await res.json()
+          this.voiceEnable = this.parseBool(data.voice_enable)
+          this.voiceKeyType = data.voice_key_type || 'env'
+          this.voiceApiKey = data.voice_api_key || ''
+          this.voiceGenerator = data.voice_generator || 'minimax'
+          this.original = this.buildPayload()
+        }
+      } catch (e) {
+        this.showMessage('加载配置失败', 'error')
+      } finally {
+        this.loading = false
+        this.ready = true
+      }
+    },
+    parseBool(val) {
+      if (typeof val === 'boolean') return val
+      const s = String(val).toLowerCase().replace(/["']/g, '')
+      return s === 'true'
+    },
+    buildPayload() {
+      return JSON.stringify({
+        voice_enable: String(this.voiceEnable),
+        voice_key_type: this.voiceKeyType,
+        voice_api_key: this.voiceApiKey,
+        voice_generator: this.voiceGenerator
+      })
+    },
+    async saveConfig() {
+      if (this.saving) return
+      this.saving = true
+      try {
+        const res = await fetch('/api/agent/voice/set', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            voice_enable: String(this.voiceEnable),
+            voice_key_type: this.voiceKeyType,
+            voice_api_key: this.voiceApiKey,
+            voice_generation_type: this.voiceGenerator
+          })
+        })
+        if (res.ok) {
+          this.original = this.buildPayload()
+          this.showMessage('保存成功！', 'success')
+        } else {
+          this.showMessage('保存失败: ' + res.status, 'error')
+        }
+      } catch (e) {
+        this.showMessage('保存失败: 网络错误', 'error')
+      } finally {
+        this.saving = false
+      }
+    },
+    showMessage(text, type) {
+      this.message = text
+      this.messageType = type
+      setTimeout(() => { this.message = '' }, 3000)
+    }
+  }
+}
+</script>
+
+<style scoped>
+.config-more {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.loading-tip { text-align: center; color: #b0b0b0; padding: 40px; }
+
+.message-bar { padding: 8px 16px; font-size: 13px; text-align: center; flex-shrink: 0; }
+.message-bar.success { background: #f2f9f2; color: #4a9a5b; }
+.message-bar.error { background: #fdf2f2; color: #c75050; }
+
+.config-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.config-section {
+  background: #fff;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  border: 1px solid #eef0f2;
+  overflow: hidden;
+  padding-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #fafbfc;
+  border-bottom: 1px solid #eef0f2;
+}
+.section-header h3 { margin: 0; font-size: 14px; font-weight: 600; color: #444; }
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+}
+.field-row label {
+  min-width: 80px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #666;
+  flex-shrink: 0;
+}
+.field-input {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid #e4e8ec;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.25s, box-shadow 0.25s;
+  background: #fff;
+  color: #444;
+}
+.field-input:focus {
+  border-color: #b8cfe8;
+  box-shadow: 0 0 0 3px rgba(91, 155, 213, 0.08);
+}
+.field-input:disabled {
+  background: #f5f6f8;
+  color: #bbb;
+  cursor: not-allowed;
+}
+
+.field-row.disabled label {
+  color: #bbb;
+}
+
+/* Toggle switch */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 22px;
+  flex-shrink: 0;
+}
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: #d0d5db;
+  border-radius: 22px;
+  transition: 0.3s;
+}
+.slider::before {
+  content: '';
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+.switch input:checked + .slider { background: #6aabd8; }
+.switch input:checked + .slider::before { transform: translateX(16px); }
+
+.btn-ghost-primary {
+  padding: 5px 18px;
+  border: 1px dashed #b8d4ec;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  background: transparent;
+  color: #6aabd8;
+  transition: all 0.25s;
+}
+.btn-ghost-primary:hover {
+  background: rgba(91, 155, 213, 0.06);
+  border-color: #5b9bd5;
+}
+.btn-ghost-primary:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.btn-ghost-primary:disabled:hover {
+  background: transparent;
+}
+
+.section-save {
+  padding: 12px 16px 0;
+  text-align: center;
+}
+</style>
