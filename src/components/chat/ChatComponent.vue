@@ -232,18 +232,14 @@ export default {
       this.loading = isFirst
       this.loadingMore = !isFirst
       try {
-        const url = `/api/chat/list/${this.minId}`
-        console.log('[fetchHistory] 请求:', url, 'minId:', this.minId, 'isFirst:', isFirst)
-        const res = await fetch(url, { cache: 'no-cache' })
+        const res = await fetch(`/api/chat/list/${this.minId}`, { cache: 'no-cache' })
         const json = await res.json()
-        console.log('[fetchHistory] 响应:', JSON.stringify(json).slice(0, 500))
         // 兼容多种响应格式：json.data / json.list / json 本身为数组
         const items = Array.isArray(json.data) ? json.data
           : Array.isArray(json.list) ? json.list
           : Array.isArray(json) ? json
           : []
         if (items.length === 0) {
-          console.log('[fetchHistory] 返回空数据，标记 reachedEnd')
           this.reachedEnd = true
           return
         }
@@ -275,9 +271,7 @@ export default {
         const ids = items.map(i => i.id).filter(id => id != null && !isNaN(Number(id))).map(id => Number(id))
         if (ids.length > 0) {
           this.minId = Math.min(...ids)
-          console.log('[fetchHistory] 更新 minId:', this.minId)
         } else {
-          console.warn('[fetchHistory] 未找到有效 id，items:', items.slice(0, 2), '标记 reachedEnd')
           this.reachedEnd = true
         }
         if (isFirst) {
@@ -300,13 +294,8 @@ export default {
     },
     onScroll() {
       const el = this.$refs.messagesContainer
-      if (!el) return
-      if (this.loadingMore || this.reachedEnd) {
-        console.log('[onScroll] 跳过: loadingMore=', this.loadingMore, 'reachedEnd=', this.reachedEnd)
-        return
-      }
+      if (!el || this.loadingMore || this.reachedEnd) return
       if (el.scrollTop < 80) {
-        console.log('[onScroll] 触发加载: scrollTop=', el.scrollTop)
         this.fetchHistory()
       }
     },
