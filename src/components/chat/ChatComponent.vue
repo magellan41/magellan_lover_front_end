@@ -46,7 +46,7 @@
           <img v-else-if="avatarAgent" :src="avatarAgent" alt="agent" class="avatar-img" />
           <span v-else>{{ msg.role === 'user' ? '我' : 'AI' }}</span>
         </label>
-        <div :class="['message-bubble', msg.role === 'user' ? 'bubble-user' : 'bubble-agent']">
+        <div :class="['message-bubble', msg.role === 'user' ? 'bubble-user' : msg.type === 'error' ? 'bubble-error' : 'bubble-agent']">
           <div v-if="msg.type === 'voice' && msg.content" class="voice-player">
             <button class="vp-btn" @click="togglePlay($event, msg)">
               {{ playingId === msg.id && !paused ? '⏸' : '▶' }}
@@ -407,6 +407,16 @@ export default {
             id: Date.now()
           })
           this.scrollToBottom()
+        } else {
+          const err = await res.json().catch(() => ({}))
+          const detail = err.detail || '图片上传失败: ' + res.status
+          this.messages.push({
+            role: 'agent',
+            content: '【ERROR】' + detail,
+            type: 'error',
+            id: Date.now()
+          })
+          this.scrollToBottom()
         }
       } catch (err) {
         console.error('图片上传失败:', err)
@@ -441,7 +451,8 @@ export default {
                   const content = this.parseContent(data)
                   if (!content) continue
                   this.sending = false
-                  const msgType = obj && obj.type ? obj.type : 'text'
+                  const isError = content.startsWith('【ERROR】')
+                  const msgType = isError ? 'error' : (obj && obj.type ? obj.type : 'text')
                   const images = msgType === 'image' && content
                     ? (content.includes(',') ? content.split(',') : [content])
                         .map(p => p.trim().startsWith('/') ? 'http://localhost:8000' + p.trim() : p.trim())
@@ -682,6 +693,13 @@ export default {
   color: #444;
   border-bottom-left-radius: 4px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.bubble-error {
+  background: #fdf2f2;
+  color: #c75050;
+  border-bottom-left-radius: 4px;
+  border: 1px solid #f5d0d0;
 }
 
 .message-text {
