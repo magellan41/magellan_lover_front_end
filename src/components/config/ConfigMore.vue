@@ -91,14 +91,6 @@
           </div>
 
           <div class="field-row" :class="{ disabled: !voiceEnable }">
-            <label>Key 类型</label>
-            <select v-model="voiceKeyType" class="field-input" :disabled="!voiceEnable">
-              <option value="env">env（环境变量）</option>
-              <option value="str">str（明文）</option>
-            </select>
-          </div>
-
-          <div class="field-row" :class="{ disabled: !voiceEnable }">
             <label>API Key</label>
             <input
               v-model="voiceApiKey"
@@ -136,7 +128,6 @@ export default {
       message: '',
       messageType: 'success',
       voiceEnable: false,
-      voiceKeyType: 'env',
       voiceApiKey: '',
       voiceGenerator: 'minimax',
       scheduleDescription: '',
@@ -178,7 +169,6 @@ export default {
           // 先标记 ready，再赋值；watcher 触发时 ready 仍为 false，跳过首次保存
           this.ready = true
           this.voiceEnable = this.parseBool(data.voice_enable)
-          this.voiceKeyType = data.voice_key_type || 'env'
           this.voiceApiKey = data.voice_api_key || ''
           this.voiceGenerator = data.voice_generator || 'minimax'
           this.original = this.buildPayload()
@@ -197,7 +187,6 @@ export default {
     buildPayload() {
       return JSON.stringify({
         voice_enable: String(this.voiceEnable),
-        voice_key_type: this.voiceKeyType,
         voice_api_key: this.voiceApiKey,
         voice_generator: this.voiceGenerator
       })
@@ -211,7 +200,6 @@ export default {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             voice_enable: String(this.voiceEnable),
-            voice_key_type: this.voiceKeyType,
             voice_api_key: this.voiceApiKey,
             voice_generation_type: this.voiceGenerator
           })

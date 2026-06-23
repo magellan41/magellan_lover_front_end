@@ -27,13 +27,6 @@
               <input v-model="p.base_url" class="field-input" placeholder="https://api..." />
             </div>
             <div class="field-row">
-              <label>Key 类型</label>
-              <select v-model="p.key_type" class="field-input">
-                <option value="env">env（环境变量）</option>
-                <option value="str">str（明文）</option>
-              </select>
-            </div>
-            <div class="field-row">
               <label>API Key</label>
               <input v-model="p.api_key" class="field-input" placeholder="API Key 或环境变量名" />
             </div>
@@ -179,7 +172,6 @@ export default {
       this.platforms.push({
         platform: '',
         base_url: '',
-        key_type: 'env',
         api_key: '',
         models: []
       })
@@ -204,7 +196,6 @@ export default {
         platforms: this.platforms.map(p => ({
           platform: p.platform,
           base_url: p.base_url,
-          key_type: p.key_type,
           api_key: p.api_key,
           models: p.models.map(m => ({
             name: m.name,
