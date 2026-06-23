@@ -25,6 +25,58 @@
           </div>
         </div>
 
+        <!-- 图片生成工具 -->
+        <div class="config-section">
+          <div class="section-header">
+            <h3>图片生成工具</h3>
+          </div>
+
+          <div class="field-row">
+            <label>平台</label>
+            <input
+              v-model="imageGeneratorPlatform"
+              class="field-input"
+              placeholder="如 openai / dall-e"
+            />
+          </div>
+
+          <div class="field-row">
+            <label>API Key</label>
+            <input
+              v-model="imageGeneratorApiKey"
+              class="field-input"
+              placeholder="API Key 或环境变量名"
+            />
+          </div>
+
+          <div class="field-row">
+            <label>模型名称</label>
+            <input
+              v-model="imageGeneratorModel"
+              class="field-input"
+              placeholder="如 dall-e-3"
+            />
+          </div>
+
+          <div class="field-row">
+            <label>基准图片</label>
+            <div class="char-image-area">
+              <img v-if="characterImageSrc" :src="characterImageSrc" class="char-image-preview" @click="previewCharImage" />
+              <div v-else class="char-image-empty">未上传</div>
+              <label class="upload-char-btn">
+                <input type="file" accept="image/png,image/jpeg,image/jpg" class="upload-char-input" @change="uploadCharacterImage" />
+                {{ characterImageSrc ? '重新上传' : '上传图片' }}
+              </label>
+            </div>
+          </div>
+
+          <div class="section-save">
+            <button class="btn-ghost-primary" :disabled="savingImage" @click="saveImageConfig">
+              {{ savingImage ? '保存中...' : '保存图片生成配置' }}
+            </button>
+          </div>
+        </div>
+
         <!-- 语音设置 -->
         <div class="config-section">
           <div class="section-header">
@@ -90,6 +142,11 @@ export default {
       voiceGenerator: 'minimax',
       scheduleDescription: '',
       savingSchedule: false,
+      imageGeneratorPlatform: '',
+      imageGeneratorApiKey: '',
+      imageGeneratorModel: '',
+      characterImageSrc: '',
+      savingImage: false,
       original: '',
       ready: false
     }
@@ -102,6 +159,7 @@ export default {
   mounted() {
     this.loadConfig()
     this.loadSchedule()
+    this.loadImageConfig()
   },
   watch: {
     voiceEnable() {
@@ -206,6 +264,85 @@ export default {
       this.message = text
       this.messageType = type
       setTimeout(() => { this.message = '' }, 3000)
+    },
+    async fetchEnv(key) {
+      const res = await fetch(`/api/agent/env/get/${key}`, { cache: 'no-cache' })
+      if (!res.ok) return ''
+      const text = await res.text()
+      try { return JSON.parse(text) } catch (e) { return text }
+    },
+    async setEnv(key, value) {
+      const res = await fetch('/api/agent/env/set', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value })
+      })
+      return res.ok
+    },
+    async loadImageConfig() {
+      try {
+        const [platform, apiKey, model] = await Promise.all([
+          this.fetchEnv('image_generator_platform'),
+          this.fetchEnv('image_generator_api_key'),
+          this.fetchEnv('image_generator_model')
+        ])
+        this.imageGeneratorPlatform = platform
+        this.imageGeneratorApiKey = apiKey
+        this.imageGeneratorModel = model
+      } catch (e) {
+        this.showMessage('加载图片生成配置失败', 'error')
+      }
+      this.probeCharacterImage()
+    },
+    async saveImageConfig() {
+      if (this.savingImage) return
+      this.savingImage = true
+      try {
+        const [okPlatform, okKey, okModel] = await Promise.all([
+          this.setEnv('image_generator_platform', this.imageGeneratorPlatform),
+          this.setEnv('image_generator_api_key', this.imageGeneratorApiKey),
+          this.setEnv('image_generator_model', this.imageGeneratorModel)
+        ])
+        if (okPlatform && okKey && okModel) {
+          this.showMessage('图片生成配置保存成功！', 'success')
+        } else {
+          this.showMessage('保存失败', 'error')
+        }
+      } catch (e) {
+        this.showMessage('保存失败: 网络错误', 'error')
+      } finally {
+        this.savingImage = false
+      }
+    },
+    probeCharacterImage() {
+      this.fetchEnv('character_image_url').then(path => {
+        if (path) {
+          this.characterImageSrc = path.startsWith('/') ? 'http://localhost:8000' + path : path
+        } else {
+          this.characterImageSrc = ''
+        }
+      })
+    },
+    async uploadCharacterImage(e) {
+      const file = e.target.files[0]
+      if (!file) return
+      e.target.value = ''
+      try {
+        const formData = new FormData()
+        formData.append('file', file)
+        const res = await fetch('/api/file/uploads/character_image', { method: 'POST', body: formData })
+        if (res.ok) {
+          this.probeCharacterImage()
+          this.showMessage('基准图片上传成功！', 'success')
+        } else {
+          this.showMessage('上传失败: ' + res.status, 'error')
+        }
+      } catch (err) {
+        this.showMessage('上传失败: 网络错误', 'error')
+      }
+    },
+    previewCharImage() {
+      if (this.characterImageSrc) window.open(this.characterImageSrc, '_blank')
     }
   }
 }
@@ -371,5 +508,59 @@ export default {
 .section-save {
   padding: 12px 16px 0;
   text-align: center;
+}
+
+/* Character image */
+.char-image-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.char-image-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid #e4e8ec;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.char-image-preview:hover { opacity: 0.8; }
+.char-image-empty {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  border: 1px dashed #d0d5db;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #bbb;
+  background: #f9fafb;
+  flex-shrink: 0;
+}
+.upload-char-btn {
+  padding: 4px 14px;
+  border: 1px dashed #b8d4ec;
+  border-radius: 100px;
+  font-size: 12px;
+  cursor: pointer;
+  background: transparent;
+  color: #6aabd8;
+  transition: all 0.25s;
+  flex-shrink: 0;
+}
+.upload-char-btn:hover {
+  border-color: #5b9bd5;
+  color: #4a90c4;
+  background: rgba(91, 155, 213, 0.05);
+}
+.upload-char-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 </style>

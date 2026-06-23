@@ -73,6 +73,13 @@
               @click="previewImage(src)"
             />
           </div>
+          <div v-else-if="msg.type === 'image' && msg.content" class="image-grid">
+            <img
+              :src="getImageUrl(msg.content)"
+              class="chat-image"
+              @click="previewImage(getImageUrl(msg.content))"
+            />
+          </div>
           <pre v-else class="message-text">{{ msg.content }}</pre>
         </div>
       </div>
@@ -117,6 +124,11 @@
         发送
       </button>
     </div>
+
+    <!-- 图片预览遮罩层 -->
+    <div v-if="previewSrc" class="image-overlay" @click="previewSrc = ''">
+      <img :src="previewSrc" class="overlay-image" @click.stop />
+    </div>
   </div>
 </template>
 
@@ -141,7 +153,8 @@ export default {
       playingId: null,
       paused: false,
       durations: {},
-      currents: {}
+      currents: {},
+      previewSrc: ''
     }
   },
   mounted() {
@@ -303,6 +316,11 @@ export default {
       if (!content) return ''
       return content.startsWith('/') ? 'http://localhost:8000' + content : content
     },
+    getImageUrl(content) {
+      if (!content) return ''
+      const src = content.trim()
+      return src.startsWith('/') ? 'http://localhost:8000' + src : src
+    },
     togglePlay(e, msg) {
       e.stopPropagation()
       const audio = this.audioRefs[msg.id]
@@ -395,7 +413,7 @@ export default {
       }
     },
     previewImage(src) {
-      window.open(src, '_blank')
+      this.previewSrc = src
     },
     connectSSE() {
       this.closeSSE()
@@ -423,10 +441,16 @@ export default {
                   const content = this.parseContent(data)
                   if (!content) continue
                   this.sending = false
+                  const msgType = obj && obj.type ? obj.type : 'text'
+                  const images = msgType === 'image' && content
+                    ? (content.includes(',') ? content.split(',') : [content])
+                        .map(p => p.trim().startsWith('/') ? 'http://localhost:8000' + p.trim() : p.trim())
+                    : []
                   this.messages.push({
                     role: 'agent',
                     content,
-                    type: obj && obj.type ? obj.type : 'text',
+                    type: msgType,
+                    images,
                     id: Date.now()
                   })
                   this.scrollToBottom()
@@ -852,5 +876,25 @@ export default {
 .send-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+/* Image preview overlay */
+.image-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  animation: fadeIn 0.2s ease;
+}
+.overlay-image {
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  cursor: default;
 }
 </style>
