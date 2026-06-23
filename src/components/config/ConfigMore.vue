@@ -33,11 +33,10 @@
 
           <div class="field-row">
             <label>平台</label>
-            <input
-              v-model="imageGeneratorPlatform"
-              class="field-input"
-              placeholder="如 openai / dall-e"
-            />
+            <select v-model="imageGeneratorPlatform" class="field-input">
+              <option value="" disabled>请选择平台</option>
+              <option v-for="opt in platformOptions" :key="opt" :value="opt">{{ opt }}</option>
+            </select>
           </div>
 
           <div class="field-row">
@@ -145,6 +144,7 @@ export default {
       imageGeneratorPlatform: '',
       imageGeneratorApiKey: '',
       imageGeneratorModel: '',
+      platformOptions: [],
       characterImageSrc: '',
       savingImage: false,
       original: '',
@@ -160,6 +160,7 @@ export default {
     this.loadConfig()
     this.loadSchedule()
     this.loadImageConfig()
+    this.loadPlatformOptions()
   },
   watch: {
     voiceEnable() {
@@ -322,6 +323,26 @@ export default {
           this.characterImageSrc = ''
         }
       })
+    },
+    async loadPlatformOptions() {
+      try {
+        const res = await fetch('/api/agent/image_generator/platform/get', { cache: 'no-cache' })
+        if (res.ok) {
+          const text = await res.text()
+          let data = text
+          try {
+            data = JSON.parse(text)
+            if (typeof data === 'string') {
+              try { data = JSON.parse(data) } catch (e) { /* single layer */ }
+            }
+          } catch (e) { /* plain text */ }
+          if (Array.isArray(data)) {
+            this.platformOptions = data
+          }
+        }
+      } catch (e) {
+        console.error('加载平台列表失败:', e)
+      }
     },
     async uploadCharacterImage(e) {
       const file = e.target.files[0]
