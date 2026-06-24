@@ -380,6 +380,10 @@ export default {
       this.inputMessage = ''
       this.resetInputHeight()
       this.scrollToBottom()
+      this.$nextTick(() => {
+        const el = this.$refs.inputEl
+        if (el) el.focus()
+      })
       try {
         await fetch('/api/chat/send', {
           method: 'POST',

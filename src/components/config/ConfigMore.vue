@@ -143,6 +143,37 @@
             </button>
           </div>
         </div>
+
+        <!-- 工具设置 -->
+        <div class="config-section">
+          <div class="section-header">
+            <h3>工具设置</h3>
+          </div>
+
+          <div class="field-row">
+            <label>嵌入模型 Key</label>
+            <input
+              v-model="embeddingApiKey"
+              class="field-input"
+              placeholder="阿里云嵌入模型 API Key"
+            />
+          </div>
+
+          <div class="field-row">
+            <label>知乎查询 Key</label>
+            <input
+              v-model="zhihuApiKey"
+              class="field-input"
+              placeholder="知乎查询 API Key"
+            />
+          </div>
+
+          <div class="section-save">
+            <button class="btn-ghost-primary" :disabled="savingTool" @click="saveToolConfig">
+              {{ savingTool ? '保存中...' : '保存工具设置' }}
+            </button>
+          </div>
+        </div>
       </div>
     </template>
   </div>
@@ -172,6 +203,9 @@ export default {
       savingImage: false,
       memes: [],
       uploadingMemes: false,
+      embeddingApiKey: '',
+      zhihuApiKey: '',
+      savingTool: false,
       original: '',
       ready: false
     }
@@ -186,7 +220,7 @@ export default {
     this.loadSchedule()
     this.loadImageConfig()
     this.loadPlatformOptions()
-    this.loadMemes()
+    this.loadToolConfig()
   },
   watch: {
     voiceEnable() {
@@ -339,9 +373,11 @@ export default {
       }
     },
     probeCharacterImage() {
+      const ts = Date.now()
       this.fetchEnv('character_image_url').then(path => {
         if (path) {
-          this.characterImageSrc = path.startsWith('/') ? BACKEND_BASE + path : path
+          const base = path.startsWith('/') ? BACKEND_BASE + path : path
+          this.characterImageSrc = base + '?t=' + ts
         } else {
           this.characterImageSrc = ''
         }
@@ -388,20 +424,6 @@ export default {
     previewCharImage() {
       if (this.characterImageSrc) window.open(this.characterImageSrc, '_blank')
     },
-    async loadMemes() {
-      try {
-        const res = await fetch('/api/file/uploads/memes', { cache: 'no-cache' })
-        if (res.ok) {
-          const data = await res.json()
-          if (Array.isArray(data)) {
-            this.memes = data.map(name => ({
-              name,
-              url: BACKEND_BASE + '/static/uploads/memes/' + name
-            }))
-          }
-        }
-      } catch (e) { /* 加载失败静默处理 */ }
-    },
     async uploadMemes(e) {
       const files = Array.from(e.target.files)
       if (!files.length) return
@@ -417,7 +439,6 @@ export default {
           const total = data.total_count || files.length
           if (count > 0) {
             this.showMessage(`成功上传 ${count}/${total} 张表情包`, 'success')
-            this.loadMemes()
           } else {
             this.showMessage(`上传失败：${total} 张均未通过校验`, 'error')
           }
@@ -438,6 +459,37 @@ export default {
     },
     previewMeme(url) {
       window.open(url, '_blank')
+    },
+    async loadToolConfig() {
+      try {
+        const [embedding, zhihu] = await Promise.all([
+          this.fetchEnv('embedding_api_key'),
+          this.fetchEnv('zhihu_api_key')
+        ])
+        this.embeddingApiKey = embedding
+        this.zhihuApiKey = zhihu
+      } catch (e) {
+        this.showMessage('加载工具配置失败', 'error')
+      }
+    },
+    async saveToolConfig() {
+      if (this.savingTool) return
+      this.savingTool = true
+      try {
+        const [okEmbedding, okZhihu] = await Promise.all([
+          this.setEnv('embedding_api_key', this.embeddingApiKey),
+          this.setEnv('zhihu_api_key', this.zhihuApiKey)
+        ])
+        if (okEmbedding && okZhihu) {
+          this.showMessage('工具设置保存成功！', 'success')
+        } else {
+          this.showMessage('保存失败', 'error')
+        }
+      } catch (e) {
+        this.showMessage('保存失败: 网络错误', 'error')
+      } finally {
+        this.savingTool = false
+      }
     }
   }
 }
