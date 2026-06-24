@@ -143,6 +143,37 @@
             </button>
           </div>
         </div>
+
+        <!-- 工具设置 -->
+        <div class="config-section">
+          <div class="section-header">
+            <h3>工具设置</h3>
+          </div>
+
+          <div class="field-row">
+            <label>嵌入模型 Key</label>
+            <input
+              v-model="embeddingApiKey"
+              class="field-input"
+              placeholder="阿里云嵌入模型 API Key"
+            />
+          </div>
+
+          <div class="field-row">
+            <label>知乎查询 Key</label>
+            <input
+              v-model="zhihuApiKey"
+              class="field-input"
+              placeholder="知乎查询 API Key"
+            />
+          </div>
+
+          <div class="section-save">
+            <button class="btn-ghost-primary" :disabled="savingTool" @click="saveToolConfig">
+              {{ savingTool ? '保存中...' : '保存工具设置' }}
+            </button>
+          </div>
+        </div>
       </div>
     </template>
   </div>
@@ -172,6 +203,9 @@ export default {
       savingImage: false,
       memes: [],
       uploadingMemes: false,
+      embeddingApiKey: '',
+      zhihuApiKey: '',
+      savingTool: false,
       original: '',
       ready: false
     }
@@ -187,6 +221,7 @@ export default {
     this.loadImageConfig()
     this.loadPlatformOptions()
     this.loadMemes()
+    this.loadToolConfig()
   },
   watch: {
     voiceEnable() {
@@ -438,6 +473,37 @@ export default {
     },
     previewMeme(url) {
       window.open(url, '_blank')
+    },
+    async loadToolConfig() {
+      try {
+        const [embedding, zhihu] = await Promise.all([
+          this.fetchEnv('embedding_api_key'),
+          this.fetchEnv('zhihu_api_key')
+        ])
+        this.embeddingApiKey = embedding
+        this.zhihuApiKey = zhihu
+      } catch (e) {
+        this.showMessage('加载工具配置失败', 'error')
+      }
+    },
+    async saveToolConfig() {
+      if (this.savingTool) return
+      this.savingTool = true
+      try {
+        const [okEmbedding, okZhihu] = await Promise.all([
+          this.setEnv('embedding_api_key', this.embeddingApiKey),
+          this.setEnv('zhihu_api_key', this.zhihuApiKey)
+        ])
+        if (okEmbedding && okZhihu) {
+          this.showMessage('工具设置保存成功！', 'success')
+        } else {
+          this.showMessage('保存失败', 'error')
+        }
+      } catch (e) {
+        this.showMessage('保存失败: 网络错误', 'error')
+      } finally {
+        this.savingTool = false
+      }
     }
   }
 }
