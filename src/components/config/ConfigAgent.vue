@@ -99,6 +99,12 @@
               <option v-for="opt in modelOptions" :key="opt" :value="opt">{{ opt }}</option>
             </select>
           </div>
+          <div class="field-row">
+            <label>表情包模型 (memes)</label>
+            <select v-model="agents.memes" class="field-input">
+              <option v-for="opt in modelOptions" :key="opt" :value="opt">{{ opt }}</option>
+            </select>
+          </div>
           <div class="section-save">
             <button class="btn-ghost-primary" :disabled="savingAgent" @click="saveAgentConfig">
               {{ savingAgent ? '保存中...' : '保存 Agent 配置' }}
@@ -121,7 +127,7 @@ export default {
       savingLlm: false,
       savingAgent: false,
       platforms: [],
-      agents: { chat: '', compact: '', memory: '', story: '' },
+      agents: { chat: '', compact: '', memory: '', story: '', memes: '' },
       inputTypeOptions: ['text', 'image', 'audio', 'video']
     }
   },
@@ -160,7 +166,7 @@ export default {
             input_type: Array.isArray(m.input_type) ? [...m.input_type] : []
           }))
         }))
-        this.agents = { chat: '', compact: '', memory: '', story: '', ...(data.agents || {}) }
+        this.agents = { chat: '', compact: '', memory: '', story: '', memes: '', ...(data.agents || {}) }
       } catch (e) {
         console.error('加载 Agent 配置失败:', e)
         this.showMessage('加载配置失败: ' + e.message, 'error')

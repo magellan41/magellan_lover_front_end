@@ -76,6 +76,36 @@
           </div>
         </div>
 
+        <!-- 表情包管理 -->
+        <div class="config-section">
+          <div class="section-header">
+            <h3>表情包管理</h3>
+            <span class="meme-count">{{ memes.length }} 张</span>
+          </div>
+
+          <div class="meme-grid" v-if="memes.length">
+            <div v-for="(m, i) in memes" :key="i" class="meme-item">
+              <img :src="m.url" class="meme-thumb" @click="previewMeme(m.url)" />
+              <button class="meme-del" @click="deleteMeme(i)">×</button>
+            </div>
+          </div>
+          <div v-else class="meme-empty">暂无表情包</div>
+
+          <div class="field-col">
+            <label class="upload-char-btn">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/jpg"
+                multiple
+                class="upload-char-input"
+                @change="uploadMemes"
+              />
+              {{ uploadingMemes ? '上传中...' : '上传表情包（最多9张）' }}
+            </label>
+            <span class="meme-hint">仅支持 png/jpg/jpeg，单张小于 1MB</span>
+          </div>
+        </div>
+
         <!-- 语音设置 -->
         <div class="config-section">
           <div class="section-header">
@@ -140,6 +170,8 @@ export default {
       platformOptions: [],
       characterImageSrc: '',
       savingImage: false,
+      memes: [],
+      uploadingMemes: false,
       original: '',
       ready: false
     }
@@ -154,6 +186,7 @@ export default {
     this.loadSchedule()
     this.loadImageConfig()
     this.loadPlatformOptions()
+    this.loadMemes()
   },
   watch: {
     voiceEnable() {
@@ -354,6 +387,57 @@ export default {
     },
     previewCharImage() {
       if (this.characterImageSrc) window.open(this.characterImageSrc, '_blank')
+    },
+    async loadMemes() {
+      try {
+        const res = await fetch('/api/file/uploads/memes', { cache: 'no-cache' })
+        if (res.ok) {
+          const data = await res.json()
+          if (Array.isArray(data)) {
+            this.memes = data.map(name => ({
+              name,
+              url: BACKEND_BASE + '/static/uploads/memes/' + name
+            }))
+          }
+        }
+      } catch (e) { /* 加载失败静默处理 */ }
+    },
+    async uploadMemes(e) {
+      const files = Array.from(e.target.files)
+      if (!files.length) return
+      e.target.value = ''
+      this.uploadingMemes = true
+      try {
+        const formData = new FormData()
+        files.forEach(f => formData.append('files', f))
+        const res = await fetch('/api/file/uploads/memes', { method: 'POST', body: formData })
+        if (res.ok) {
+          const data = await res.json()
+          const count = data.success_count || 0
+          const total = data.total_count || files.length
+          if (count > 0) {
+            this.showMessage(`成功上传 ${count}/${total} 张表情包`, 'success')
+            this.loadMemes()
+          } else {
+            this.showMessage(`上传失败：${total} 张均未通过校验`, 'error')
+          }
+        } else {
+          const err = await res.json().catch(() => ({}))
+          this.showMessage('上传失败: ' + (err.detail || res.status), 'error')
+        }
+      } catch (err) {
+        this.showMessage('上传失败: 网络错误', 'error')
+      } finally {
+        this.uploadingMemes = false
+      }
+    },
+    deleteMeme(index) {
+      const meme = this.memes[index]
+      if (!meme || !confirm('确定删除此表情包？')) return
+      this.memes.splice(index, 1)
+    },
+    previewMeme(url) {
+      window.open(url, '_blank')
     }
   }
 }
@@ -573,5 +657,63 @@ export default {
   height: 0;
   opacity: 0;
   pointer-events: none;
+}
+
+/* Meme grid */
+.meme-count {
+  font-size: 12px;
+  color: #999;
+}
+.meme-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 16px;
+}
+.meme-item {
+  position: relative;
+  width: 72px;
+  height: 72px;
+}
+.meme-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e4e8ec;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.meme-thumb:hover { opacity: 0.8; }
+.meme-del {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid #f0b3be;
+  background: #fff;
+  color: #d4768a;
+  font-size: 12px;
+  line-height: 16px;
+  text-align: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s;
+}
+.meme-del:hover {
+  background: #fdf2f2;
+  border-color: #d4768a;
+}
+.meme-empty {
+  padding: 12px 16px;
+  color: #bbb;
+  font-size: 13px;
+}
+.meme-hint {
+  font-size: 12px;
+  color: #bbb;
+  margin-left: 8px;
 }
 </style>
