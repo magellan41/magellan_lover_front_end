@@ -119,6 +119,8 @@
 </template>
 
 <script>
+import { BACKEND_BASE } from '@/config'
+
 export default {
   name: 'ConfigMore',
   data() {
@@ -306,7 +308,7 @@ export default {
     probeCharacterImage() {
       this.fetchEnv('character_image_url').then(path => {
         if (path) {
-          this.characterImageSrc = path.startsWith('/') ? 'http://localhost:8000' + path : path
+          this.characterImageSrc = path.startsWith('/') ? BACKEND_BASE + path : path
         } else {
           this.characterImageSrc = ''
         }
