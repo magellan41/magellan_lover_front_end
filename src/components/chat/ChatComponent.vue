@@ -133,6 +133,8 @@
 </template>
 
 <script>
+import { BACKEND_BASE } from '@/config'
+
 export default {
   name: 'ChatComponent',
   data() {
@@ -174,7 +176,10 @@ export default {
         if (res.ok) {
           const t = await res.text()
           const val = t.startsWith('"') ? JSON.parse(t) : t
-          if (val) this.agentName = val
+          if (val) {
+            this.agentName = val
+            document.title = val
+          }
         }
       } catch (e) { /* 保持默认名 */ }
     },
@@ -216,12 +221,12 @@ export default {
         if (resU.ok) {
           const t = await resU.text()
           const val = t.startsWith('"') ? JSON.parse(t) : t
-          this.avatarUser = val.startsWith('/') ? 'http://localhost:8000' + val : val
+          this.avatarUser = val.startsWith('/') ? BACKEND_BASE + val : val
         }
         if (resA.ok) {
           const t = await resA.text()
           const val = t.startsWith('"') ? JSON.parse(t) : t
-          this.avatarAgent = val.startsWith('/') ? 'http://localhost:8000' + val : val
+          this.avatarAgent = val.startsWith('/') ? BACKEND_BASE + val : val
         }
       } catch (e) { /* 头像加载失败 */ }
     },
@@ -264,7 +269,7 @@ export default {
             const paths = content.includes(',') ? content.split(',') : [content]
             images = paths.map(p => {
               const trim = p.trim()
-              return trim.startsWith('/') ? 'http://localhost:8000' + trim : trim
+              return trim.startsWith('/') ? BACKEND_BASE + trim : trim
             })
           }
           return {
@@ -314,12 +319,12 @@ export default {
     },
     getVoiceUrl(content) {
       if (!content) return ''
-      return content.startsWith('/') ? 'http://localhost:8000' + content : content
+      return content.startsWith('/') ? BACKEND_BASE + content : content
     },
     getImageUrl(content) {
       if (!content) return ''
       const src = content.trim()
-      return src.startsWith('/') ? 'http://localhost:8000' + src : src
+      return src.startsWith('/') ? BACKEND_BASE + src : src
     },
     togglePlay(e, msg) {
       e.stopPropagation()
@@ -394,11 +399,11 @@ export default {
       const formData = new FormData()
       files.forEach(f => formData.append('files', f))
       try {
-        const res = await fetch('/api/chat/image', { method: 'POST', body: formData })
+        const res = await fetch(BACKEND_BASE + '/api/chat/image', { method: 'POST', body: formData })
         if (res.ok) {
           const data = await res.json()
           const urls = data.urls || []
-          const images = urls.map(p => p.startsWith('/') ? 'http://localhost:8000' + p : p)
+          const images = urls.map(p => p.startsWith('/') ? BACKEND_BASE + p : p)
           this.messages.push({
             role: 'user',
             type: 'image',
@@ -429,7 +434,7 @@ export default {
       this.closeSSE()
       this.sseController = new AbortController()
       const signal = this.sseController.signal
-      fetch('http://localhost:8000/api/chat/stream', { signal })
+      fetch(BACKEND_BASE + '/api/chat/stream', { signal })
         .then(response => {
           const reader = response.body.getReader()
           const decoder = new TextDecoder()
@@ -455,7 +460,7 @@ export default {
                   const msgType = isError ? 'error' : (obj && obj.type ? obj.type : 'text')
                   const images = msgType === 'image' && content
                     ? (content.includes(',') ? content.split(',') : [content])
-                        .map(p => p.trim().startsWith('/') ? 'http://localhost:8000' + p.trim() : p.trim())
+                        .map(p => p.trim().startsWith('/') ? BACKEND_BASE + p.trim() : p.trim())
                     : []
                   this.messages.push({
                     role: 'agent',
