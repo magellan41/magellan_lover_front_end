@@ -19,6 +19,10 @@
         @click="level1 = 'memory'"
       >记忆</button>
       <button
+        :class="{ active: level1 === 'task' }"
+        @click="level1 = 'task'"
+      >任务管理</button>
+      <button
         :class="{ active: level1 === 'more' }"
         @click="level1 = 'more'"
       >更多配置</button>
@@ -68,7 +72,10 @@
     <ConfigMemory v-else-if="level1 === 'memory'" />
 
     <!-- 更多配置 -->
-    <ConfigMore v-else />
+    <ConfigMore v-else-if="level1 === 'more'" />
+
+    <!-- 任务管理 -->
+    <ConfigTask v-else />
   </div>
 </template>
 
@@ -76,10 +83,11 @@
 import ConfigAgent from './ConfigAgent.vue'
 import ConfigMemory from './ConfigMemory.vue'
 import ConfigMore from './ConfigMore.vue'
+import ConfigTask from './ConfigTask.vue'
 
 export default {
   name: 'ConfigLover',
-  components: { ConfigAgent, ConfigMemory, ConfigMore },
+  components: { ConfigAgent, ConfigMemory, ConfigMore, ConfigTask },
   data() {
     return {
       level1: 'lover',

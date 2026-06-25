@@ -2,21 +2,25 @@
   <div>
     <nav class="app-nav">
       <button :class="{ active: currentPage === 'chat' }" @click="currentPage = 'chat'">聊天</button>
+      <button :class="{ active: currentPage === 'diary' }" @click="currentPage = 'diary'">日记</button>
       <button :class="{ active: currentPage === 'config' }" @click="currentPage = 'config'">配置</button>
     </nav>
     <ChatComponent v-if="currentPage === 'chat'" />
+    <DiaryPage v-else-if="currentPage === 'diary'" />
     <ConfigLover v-else />
   </div>
 </template>
 
 <script>
 import ChatComponent from './components/chat/ChatComponent.vue'
+import DiaryPage from './components/diary/DiaryPage.vue'
 import ConfigLover from './components/config/ConfigLover.vue'
 
 export default {
   name: 'App',
   components: {
     ChatComponent,
+    DiaryPage,
     ConfigLover
   },
   data() {
